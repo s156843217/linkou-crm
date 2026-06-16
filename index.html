@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="robots" content="noindex,nofollow">
+  <title>林口 CRM ・ 客戶維護</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <!-- ─── 登入畫面 ─── -->
+  <section id="login">
+    <div class="panel">
+      <h1>林口 <span style="color:var(--gold)">CRM</span></h1>
+      <p class="sub">客戶維護系統 ・ 內部使用</p>
+      <div class="field">
+        <label class="lbl" for="email">Email</label>
+        <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label class="lbl" for="pw">密碼</label>
+        <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
+      </div>
+      <button class="btn" id="loginBtn" style="width:100%">登入</button>
+      <div class="err" id="loginErr"></div>
+      <p class="hint" id="loginHint">首次使用請先到 Supabase 後台建立帳號（或啟用註冊）。</p>
+    </div>
+  </section>
+
+  <!-- ─── 主程式（登入後顯示）─── -->
+  <div id="app" class="hidden">
+    <div class="topbar">
+      <div class="inner">
+        <div class="logo">林口 <span class="mk">CRM</span></div>
+        <div class="spacer"></div>
+        <div class="who" id="whoami"></div>
+        <button class="lout" id="logoutBtn">登出</button>
+      </div>
+    </div>
+
+    <div class="wrap">
+      <div id="bdayBanner" class="hidden"></div>
+
+      <div class="toolbar">
+        <input class="search" id="search" type="search" placeholder="🔍 搜尋姓名 / 電話 / 社區 / 備註…">
+        <select id="fStatus">
+          <option value="">全部狀態</option>
+          <option value="進行中">進行中</option>
+          <option value="已成交">已成交</option>
+          <option value="已流失">已流失</option>
+        </select>
+        <select id="fGrade">
+          <option value="">全部分級</option>
+          <option value="A">A 熱</option>
+          <option value="B">B 溫</option>
+          <option value="C">C 冷</option>
+        </select>
+        <button class="btn" id="addBtn">＋ 新增客戶</button>
+        <button class="btn teal" id="matchBtn">🔍 新案比對</button>
+        <button class="btn ghost" id="lineBtn">📥 LINE 匯入</button>
+      </div>
+
+      <div id="clist" class="clist"></div>
+    </div>
+  </div>
+
+  <!-- 動態彈窗掛載點 -->
+  <div id="modalRoot"></div>
+
+  <!-- 設定（複製 config.example.js → config.js 並填入）-->
+  <script src="config.js"></script>
+  <!-- Supabase JS SDK v2 -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="app.js"></script>
+</body>
+</html>
