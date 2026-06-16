@@ -1,5 +1,6 @@
-# 真正的 Supabase 連線設定（每台電腦自己填，不進版控）
-config.js
+# 注意：config.js 內只有「公開的」Supabase URL + anon(publishable) key，
+# 這兩個值本來就設計成放在前端瀏覽器，搭配資料表 RLS 保護資料，可以進版控。
+# 真正的祕密（service_role key、Anthropic 金鑰）只放後端 Edge Function，絕不放這裡。
 
 # 從 LINE 匯出的對話、任何含真實客戶個資的測試檔
 reference/
