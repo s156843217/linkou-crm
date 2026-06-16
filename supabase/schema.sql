@@ -18,11 +18,19 @@ create table if not exists profiles (
 );
 
 -- 新帳號註冊時，自動建立一筆 profile
+-- 注意：security definer + set search_path = public + 完整表名 public.profiles
+-- 三者缺一，建立使用者時可能因 search_path 受限而找不到 profiles 表，
+-- 導致 Supabase 報「Database error creating new user」。
 create or replace function handle_new_user()
-returns trigger language plpgsql security definer as $$
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
 begin
-  insert into profiles (id, display_name)
-  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)));
+  insert into public.profiles (id, display_name)
+  values (new.id, coalesce(new.raw_user_meta_data->>'display_name', split_part(new.email, '@', 1)))
+  on conflict (id) do nothing;
   return new;
 end; $$;
 
@@ -129,11 +137,13 @@ alter table customers    enable row level security;
 alter table interactions enable row level security;
 alter table viewings     enable row level security;
 
--- profiles：登入者可看全部、只能改自己那筆
-drop policy if exists p_profiles_read  on profiles;
-drop policy if exists p_profiles_write on profiles;
-create policy p_profiles_read  on profiles for select to authenticated using (true);
-create policy p_profiles_write on profiles for update to authenticated using (auth.uid() = id);
+-- profiles：登入者可看全部、只能改/建自己那筆
+drop policy if exists p_profiles_read   on profiles;
+drop policy if exists p_profiles_write  on profiles;
+drop policy if exists p_profiles_insert on profiles;
+create policy p_profiles_read   on profiles for select to authenticated using (true);
+create policy p_profiles_write  on profiles for update to authenticated using (auth.uid() = id);
+create policy p_profiles_insert on profiles for insert to authenticated with check (auth.uid() = id);
 
 -- customers / interactions / viewings：登入者可完全存取
 drop policy if exists p_customers_all    on customers;

@@ -59,6 +59,7 @@
       $("#login").classList.add("hidden");
       $("#app").classList.remove("hidden");
       await loadProfiles();
+      await ensureMyProfile();
       $("#whoami").textContent = (profiles[me.id] || me.email) + " ・ 您好";
       await loadCustomers();
     } else {
@@ -72,6 +73,15 @@
     const { data } = await sb.from("profiles").select("id,display_name");
     profiles = {};
     (data || []).forEach((p) => { profiles[p.id] = p.display_name; });
+  }
+
+  // 保險：確保目前登入者一定有一筆 profile（萬一觸發器沒建到，
+  // 才不會讓「負責人」下拉是空的）。靠 p_profiles_insert 權限。
+  async function ensureMyProfile() {
+    if (profiles[me.id]) return;
+    const name = (me.email || "").split("@")[0];
+    const { error } = await sb.from("profiles").upsert({ id: me.id, display_name: name });
+    if (!error) profiles[me.id] = name;
   }
 
   // ═══ 客戶列表 ═══════════════════════════════════════════
