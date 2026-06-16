@@ -38,8 +38,9 @@ supabase login
 supabase link --project-ref <你的專案ref>
 # 設定 Anthropic 金鑰（只存後端，瀏覽器看不到）
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxxx
-# 部署函式
-supabase functions deploy parse-line
+# 部署函式（兩個都要）
+supabase functions deploy parse-line      # LINE 對話匯入
+supabase functions deploy parse-listing   # 新案網址/文字解析
 ```
 Anthropic 金鑰到 [console.anthropic.com](https://console.anthropic.com) 申請並儲值（US$5 很夠用）。
 
@@ -56,8 +57,10 @@ linkou-crm/
 ├── app.js            主程式（認證/列表/編輯/詳情/比對/匯入）
 ├── config.example.js 連線設定範本（複製成 config.js 填值）
 └── supabase/
-    ├── schema.sql            資料表 + 權限(RLS)
-    └── functions/parse-line/ LINE 解析 Edge Function（Claude Opus 4.8）
+    ├── schema.sql               資料表 + 權限(RLS)
+    └── functions/
+        ├── parse-line/          LINE 對話解析（Claude Opus 4.8）
+        └── parse-listing/       新案網址/文字解析（Claude Opus 4.8）
 ```
 
 ## 技術

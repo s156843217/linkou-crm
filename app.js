@@ -417,7 +417,20 @@
     const box = openModal(`
       <div class="mhead"><h2>🔍 新案比對</h2><button class="x" data-x>×</button></div>
       <div class="mbody">
-        <p class="hint" style="margin-bottom:14px">輸入新進案件的條件，系統會掃描「進行中」的客戶，依吻合度評分排序。</p>
+        <p class="hint" style="margin-bottom:14px">貼網址或案件文字讓 AI 自動填條件，或直接手動輸入；系統會掃描「進行中」客戶依吻合度評分排序。</p>
+        <div class="panel" style="padding:13px;margin-bottom:14px">
+          <label class="lbl">① 貼案件網址（公司案場通常可讀；591 常被反爬蟲擋）</label>
+          <div style="display:flex;gap:8px">
+            <input id="m_url" placeholder="https://…">
+            <button class="btn teal sm" id="m_fetch" style="white-space:nowrap">AI 讀取</button>
+          </div>
+          <div style="font-size:12px;color:var(--ink-soft);text-align:center;margin:10px 0 6px">— 或，網址讀不到就貼文字 —</div>
+          <label class="lbl">② 貼上案件文字（591 描述、案件頁文字…）</label>
+          <textarea id="m_text" style="min-height:68px" placeholder="把案件頁看得到的文字複製貼上…"></textarea>
+          <button class="btn ghost sm" id="m_ptext" style="margin-top:8px">AI 解析文字</button>
+          <div class="hint" id="m_read"></div>
+        </div>
+        <div class="section-t"><span class="dot"></span>案件條件（AI 填好後可手動調整）</div>
         <div class="grid2">
           <div class="field"><label class="lbl">總價（萬）</label><input id="m_price" type="number" placeholder="如 1380"></div>
           <div class="field"><label class="lbl">區域 / 路段</label><input id="m_area" placeholder="如 文化一路"></div>
@@ -433,6 +446,38 @@
       </div>`);
     box.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", () => closeModal(box)));
     box.querySelector("#m_go").addEventListener("click", () => runMatch(box));
+    box.querySelector("#m_fetch").addEventListener("click", () => fetchListing(box, "url"));
+    box.querySelector("#m_ptext").addEventListener("click", () => fetchListing(box, "text"));
+  }
+
+  // 呼叫 parse-listing：抓網址 or 解析文字 → 自動填入比對條件欄位
+  async function fetchListing(box, kind) {
+    const read = box.querySelector("#m_read");
+    read.textContent = "";
+    let body;
+    if (kind === "url") {
+      const url = box.querySelector("#m_url").value.trim();
+      if (!url) { read.textContent = "請先貼上網址。"; return; }
+      body = { url };
+    } else {
+      const text = box.querySelector("#m_text").value.trim();
+      if (text.length < 20) { read.textContent = "請貼上足夠的案件文字。"; return; }
+      body = { text };
+    }
+    const btn = box.querySelector(kind === "url" ? "#m_fetch" : "#m_ptext");
+    const label = btn.textContent;
+    btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 解析中…`;
+    const { data, error } = await sb.functions.invoke("parse-listing", { body });
+    btn.disabled = false; btn.textContent = label;
+    if (error || (data && data.error)) {
+      read.innerHTML = `<span style="color:var(--red)">讀取失敗：${esc((data && data.error) || error.message)}${kind === "url" ? "（試試改貼文字）" : ""}</span>`;
+      return;
+    }
+    const set = (id, v) => { if (v != null && v !== "") box.querySelector("#" + id).value = v; };
+    set("m_price", data.price); set("m_area", data.area); set("m_comm", data.community);
+    set("m_room", data.room); set("m_ping", data.ping); set("m_school", data.school); set("m_age", data.age);
+    box.querySelector("#m_park").value = data.parking ? "是" : "否";
+    read.innerHTML = `已讀取：<b>${esc(data.title || "案件")}</b>　請確認下方條件後按「開始比對」。`;
   }
 
   function runMatch(box) {
