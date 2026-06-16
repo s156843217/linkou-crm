@@ -5,8 +5,8 @@
 - 手機 / 電腦皆可用、兩人即時同步
 - 客戶建檔（基本資料 + 買方需求 + 家庭背景）
 - 互動紀錄、帶看紀錄（社區建檔 + 反應）
-- 生日提醒、新案比對（評分排序）
-- LINE 對話匯入 → AI（Claude Opus 4.8）自動建檔與屬性分析
+- 生日提醒、新案比對（手動輸入條件 → 評分排序）
+- 貼上建檔：自己用外部 AI（ChatGPT/Gemini/Claude）整理對話 → 把結果貼回系統自動建檔（**免費，不經本系統 AI**）
 
 > ⚠️ 含真實客戶個資。請保持此 repo 為 **private**，勿與公開網站混用。
 
@@ -31,18 +31,22 @@ Supabase 後台 → **SQL Editor** → 貼上 `supabase/schema.sql` 全部 → R
 
 `config.js` 已被 `.gitignore` 排除，不會進版控。
 
-### 5. 部署 LINE 匯入的 Edge Function
+### 5.（選用，未來才需要）部署 AI Edge Function
+> 目前採「免費做法」：用「📥 貼上建檔」搭配自己的外部 AI，**不需要這一步**。
+> 只有當你之後想要「系統內直接用 AI 解析、會產生 Anthropic 費用」時才做。
+
+`supabase/functions/` 內已備好兩個函式（`parse-line`、`parse-listing`），要啟用時：
 需安裝 [Supabase CLI](https://supabase.com/docs/guides/cli)，然後：
 ```bash
 supabase login
 supabase link --project-ref <你的專案ref>
 # 設定 Anthropic 金鑰（只存後端，瀏覽器看不到）
 supabase secrets set ANTHROPIC_API_KEY=sk-ant-xxxxx
-# 部署函式（兩個都要）
-supabase functions deploy parse-line      # LINE 對話匯入
+supabase functions deploy parse-line      # LINE 對話解析
 supabase functions deploy parse-listing   # 新案網址/文字解析
 ```
 Anthropic 金鑰到 [console.anthropic.com](https://console.anthropic.com) 申請並儲值（US$5 很夠用）。
+（啟用後，前端可再把「貼上建檔 / 手動比對」接回 AI 版；程式已保留。）
 
 ---
 

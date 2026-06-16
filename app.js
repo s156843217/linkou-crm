@@ -417,20 +417,7 @@
     const box = openModal(`
       <div class="mhead"><h2>🔍 新案比對</h2><button class="x" data-x>×</button></div>
       <div class="mbody">
-        <p class="hint" style="margin-bottom:14px">貼網址或案件文字讓 AI 自動填條件，或直接手動輸入；系統會掃描「進行中」客戶依吻合度評分排序。</p>
-        <div class="panel" style="padding:13px;margin-bottom:14px">
-          <label class="lbl">① 貼案件網址（公司案場通常可讀；591 常被反爬蟲擋）</label>
-          <div style="display:flex;gap:8px">
-            <input id="m_url" placeholder="https://…">
-            <button class="btn teal sm" id="m_fetch" style="white-space:nowrap">AI 讀取</button>
-          </div>
-          <div style="font-size:12px;color:var(--ink-soft);text-align:center;margin:10px 0 6px">— 或，網址讀不到就貼文字 —</div>
-          <label class="lbl">② 貼上案件文字（591 描述、案件頁文字…）</label>
-          <textarea id="m_text" style="min-height:68px" placeholder="把案件頁看得到的文字複製貼上…"></textarea>
-          <button class="btn ghost sm" id="m_ptext" style="margin-top:8px">AI 解析文字</button>
-          <div class="hint" id="m_read"></div>
-        </div>
-        <div class="section-t"><span class="dot"></span>案件條件（AI 填好後可手動調整）</div>
+        <p class="hint" style="margin-bottom:14px">輸入新進案件的條件，系統會掃描「進行中」的客戶，依吻合度評分排序。</p>
         <div class="grid2">
           <div class="field"><label class="lbl">總價（萬）</label><input id="m_price" type="number" placeholder="如 1380"></div>
           <div class="field"><label class="lbl">區域 / 路段</label><input id="m_area" placeholder="如 文化一路"></div>
@@ -446,38 +433,6 @@
       </div>`);
     box.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", () => closeModal(box)));
     box.querySelector("#m_go").addEventListener("click", () => runMatch(box));
-    box.querySelector("#m_fetch").addEventListener("click", () => fetchListing(box, "url"));
-    box.querySelector("#m_ptext").addEventListener("click", () => fetchListing(box, "text"));
-  }
-
-  // 呼叫 parse-listing：抓網址 or 解析文字 → 自動填入比對條件欄位
-  async function fetchListing(box, kind) {
-    const read = box.querySelector("#m_read");
-    read.textContent = "";
-    let body;
-    if (kind === "url") {
-      const url = box.querySelector("#m_url").value.trim();
-      if (!url) { read.textContent = "請先貼上網址。"; return; }
-      body = { url };
-    } else {
-      const text = box.querySelector("#m_text").value.trim();
-      if (text.length < 20) { read.textContent = "請貼上足夠的案件文字。"; return; }
-      body = { text };
-    }
-    const btn = box.querySelector(kind === "url" ? "#m_fetch" : "#m_ptext");
-    const label = btn.textContent;
-    btn.disabled = true; btn.innerHTML = `<span class="spin"></span> 解析中…`;
-    const { data, error } = await sb.functions.invoke("parse-listing", { body });
-    btn.disabled = false; btn.textContent = label;
-    if (error || (data && data.error)) {
-      read.innerHTML = `<span style="color:var(--red)">讀取失敗：${esc((data && data.error) || error.message)}${kind === "url" ? "（試試改貼文字）" : ""}</span>`;
-      return;
-    }
-    const set = (id, v) => { if (v != null && v !== "") box.querySelector("#" + id).value = v; };
-    set("m_price", data.price); set("m_area", data.area); set("m_comm", data.community);
-    set("m_room", data.room); set("m_ping", data.ping); set("m_school", data.school); set("m_age", data.age);
-    box.querySelector("#m_park").value = data.parking ? "是" : "否";
-    read.innerHTML = `已讀取：<b>${esc(data.title || "案件")}</b>　請確認下方條件後按「開始比對」。`;
   }
 
   function runMatch(box) {
@@ -528,36 +483,134 @@
     res.querySelectorAll(".match").forEach((n) => n.addEventListener("click", () => { closeTop(); openDetail(n.dataset.id); }));
   }
 
-  // ═══ LINE 對話匯入（呼叫 Supabase Edge Function → Claude Opus 4.8）═══
-  function openLineImport() {
-    const box = openModal(`
-      <div class="mhead"><h2>📥 LINE 對話匯入</h2><button class="x" data-x>×</button></div>
-      <div class="mbody">
-        <div class="ai-note">把與客戶的 LINE 對話（在 LINE 聊天室 → 選單 → 匯出聊天記錄）的文字貼到下方，
-          系統會交給 AI（Claude Opus 4.8）自動萃取姓名、需求、喜好與屬性分析，產生一張預填好的客戶卡讓你確認後存檔。
-          <br>※ 對話內容會送到 AI 服務處理，請留意這屬於對外傳送個資。</div>
-        <div class="field"><label class="lbl">貼上 LINE 對話文字</label>
-          <textarea id="l_text" style="min-height:200px" placeholder="貼上匯出的對話…"></textarea></div>
-        <button class="btn" id="l_go" style="width:100%">用 AI 解析並建檔</button>
-        <div class="err" id="l_err"></div>
-      </div>`);
-    box.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", () => closeModal(box)));
-    box.querySelector("#l_go").addEventListener("click", () => runLineImport(box));
+  // ═══ 貼上建檔（不經本系統 AI，零費用）═══════════════════
+  // 做法：使用者自己拿 LINE 對話去 ChatGPT/Gemini/Claude 整理成固定格式，
+  // 再把結果貼回來，系統解析後預填客戶卡。
+
+  // 給外部 AI 的提示詞（一鍵複製）
+  const IMPORT_PROMPT = `請閱讀以下我和「房仲買方客戶」的 LINE 對話，幫我整理成這位客戶的資料。
+只輸出「一段 JSON」，不要任何多餘說明文字。無法判斷的欄位填 null，陣列無資料填 []。
+全程使用繁體中文；總價一律換算成「萬元」整數；不要捏造資料。
+
+{
+  "name": "姓名或稱呼",
+  "nickname": "暱稱",
+  "phone": "電話",
+  "line_id": "LINE ID",
+  "source": "來源(網路/轉介/洗街…)",
+  "intent": "買 或 租",
+  "budget_min": 總價下限萬元整數,
+  "budget_max": 總價上限萬元整數,
+  "areas": ["想要的區域或路段"],
+  "communities": ["提到的社區名稱"],
+  "room_min": 房數下限,
+  "room_max": 房數上限,
+  "ping_min": 坪數下限,
+  "ping_max": 坪數上限,
+  "need_parking": true/false,
+  "school_need": "學區需求",
+  "age_max": 可接受屋齡上限年,
+  "floor_pref": "樓層偏好",
+  "orientation": "朝向",
+  "purpose": "自住 或 投資",
+  "urgency": "急迫度/時間軸",
+  "family_members": "家庭成員",
+  "kids": "小孩年齡",
+  "occupation": "職業",
+  "interests": "興趣/嗜好",
+  "pets": "寵物",
+  "note": "重點摘要＋客戶屬性分析(個性、決策風格、在意點等)"
+}
+
+【以下是 LINE 對話】
+`;
+
+  // 欄位別名（容許外部 AI 用英文鍵或中文標籤）
+  const FIELD_ALIASES = {
+    name: ["name", "姓名", "客戶姓名", "客戶"], nickname: ["nickname", "暱稱", "稱呼"],
+    phone: ["phone", "電話", "手機", "聯絡電話", "連絡電話"], line_id: ["line_id", "line", "lineid", "line id"],
+    source: ["source", "來源", "認識來源"], intent: ["intent", "意向"],
+    budget_min: ["budget_min", "總價下限", "預算下限"], budget_max: ["budget_max", "總價上限", "預算上限", "預算", "總價"],
+    areas: ["areas", "區域", "路段", "區域/路段", "地區"], communities: ["communities", "社區", "偏好社區", "指定社區"],
+    room_min: ["room_min", "房數下限"], room_max: ["room_max", "房數上限", "房數"],
+    ping_min: ["ping_min", "坪數下限"], ping_max: ["ping_max", "坪數上限", "坪數"],
+    need_parking: ["need_parking", "車位", "需車位", "車位需求"], school_need: ["school_need", "學區", "學區需求"],
+    age_max: ["age_max", "屋齡上限", "屋齡", "可接受屋齡"], floor_pref: ["floor_pref", "樓層", "樓層偏好"],
+    orientation: ["orientation", "朝向"], purpose: ["purpose", "用途", "自住/投資", "自住投資"],
+    urgency: ["urgency", "急迫度", "時間軸"], family_members: ["family_members", "家庭成員", "家庭"],
+    kids: ["kids", "小孩", "小孩年齡", "子女"], occupation: ["occupation", "職業", "工作"],
+    interests: ["interests", "興趣", "嗜好", "興趣/嗜好"], pets: ["pets", "寵物"],
+    note: ["note", "備註", "摘要", "屬性分析", "綜合備註", "分析"],
+  };
+  const ALIAS = {};
+  Object.keys(FIELD_ALIASES).forEach((f) => FIELD_ALIASES[f].forEach((a) => { ALIAS[a.toLowerCase()] = f; }));
+  const NUM_FIELDS = ["budget_min", "budget_max", "room_min", "room_max", "ping_min", "ping_max", "age_max"];
+  const ARR_FIELDS = ["areas", "communities"];
+
+  const numFrom = (v) => { if (v == null) return null; if (typeof v === "number") return v; const m = String(v).match(/-?\d+(\.\d+)?/); return m ? Number(m[0]) : null; };
+  const boolFrom = (v) => (typeof v === "boolean" ? v : v == null ? false : /^(是|要|需|有|true|yes|y|1)/i.test(String(v).trim()));
+
+  function normalizeImport(raw) {
+    const out = {};
+    Object.keys(raw || {}).forEach((k) => {
+      const f = ALIAS[String(k).trim().toLowerCase()];
+      if (!f) return;
+      let v = raw[k];
+      if (v == null || v === "" || v === "null") return;
+      if (ARR_FIELDS.includes(f)) out[f] = Array.isArray(v) ? v.map(String).map((s) => s.trim()).filter(Boolean) : arr(v);
+      else if (NUM_FIELDS.includes(f)) { const n = numFrom(v); if (n != null) out[f] = n; }
+      else if (f === "need_parking") out[f] = boolFrom(v);
+      else out[f] = Array.isArray(v) ? v.join("、") : String(v);
+    });
+    return out;
   }
 
-  async function runLineImport(box) {
-    const text = box.querySelector("#l_text").value.trim();
-    const err = box.querySelector("#l_err");
-    err.textContent = "";
-    if (text.length < 20) { err.textContent = "請貼上足夠的對話內容。"; return; }
-    const btn = box.querySelector("#l_go");
-    btn.disabled = true; btn.innerHTML = `<span class="spin"></span> AI 解析中（約 10–30 秒）…`;
-    const { data, error } = await sb.functions.invoke("parse-line", { body: { text } });
-    btn.disabled = false; btn.textContent = "用 AI 解析並建檔";
-    if (error) { err.textContent = "解析失敗：" + error.message + "（請確認 Edge Function 已部署、金鑰已設定）"; return; }
-    closeModal(box);
-    // AI 回傳的欄位 → 開啟預填好的新增表單讓使用者確認
-    openEditor(Object.assign({}, data, { id: null }));
+  function parsePasted(text) {
+    text = String(text || "").trim();
+    // 1) 先試 JSON（去掉 ``` 圍欄，取第一個 { 到最後一個 }）
+    const cleaned = text.replace(/```[a-z]*|```/gi, "").trim();
+    const s = cleaned.indexOf("{"), e = cleaned.lastIndexOf("}");
+    if (s >= 0 && e > s) {
+      try { return normalizeImport(JSON.parse(cleaned.slice(s, e + 1))); } catch (_e) { /* 落到逐行解析 */ }
+    }
+    // 2) 退而求其次：逐行「標籤：值」
+    const obj = {};
+    text.split(/\r?\n/).forEach((line) => {
+      const m = line.match(/^\s*[-*•]?\s*([^:：]+)[:：]\s*(.+?)\s*$/);
+      if (m) obj[m[1].trim()] = m[2].trim();
+    });
+    return normalizeImport(obj);
+  }
+
+  function openPasteImport() {
+    const box = openModal(`
+      <div class="mhead"><h2>📥 貼上建檔</h2><button class="x" data-x>×</button></div>
+      <div class="mbody">
+        <div class="ai-note">流程：① 在 LINE 匯出對話 → ② 貼到 ChatGPT / Gemini / Claude，用下面的提示詞請它整理 →
+          ③ 把它給你的結果貼回下方 → 自動建好客戶卡。<br><b>此方式不經過本系統 AI，完全免費。</b></div>
+        <details style="margin-bottom:14px">
+          <summary style="cursor:pointer;font-weight:700;color:var(--clay-d)">📋 點開：給 AI 的提示詞（複製給 ChatGPT/Gemini/Claude）</summary>
+          <textarea id="p_prompt" readonly style="min-height:150px;margin-top:8px;font-size:12px">${esc(IMPORT_PROMPT)}</textarea>
+          <button class="btn ghost sm" id="p_copy" style="margin-top:8px">複製提示詞</button>
+        </details>
+        <div class="field"><label class="lbl">把 AI 整理好的結果貼到這裡（JSON 或 條列皆可）</label>
+          <textarea id="p_text" style="min-height:160px" placeholder='貼上 AI 給的結果，例如 { "name": "...", "budget_max": 1500, ... }'></textarea></div>
+        <button class="btn" id="p_go" style="width:100%">解析並建檔</button>
+        <div class="err" id="p_err"></div>
+      </div>`);
+    box.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", () => closeModal(box)));
+    box.querySelector("#p_copy").addEventListener("click", async () => {
+      const btn = box.querySelector("#p_copy");
+      try { await navigator.clipboard.writeText(IMPORT_PROMPT); }
+      catch (_e) { box.querySelector("#p_prompt").select(); document.execCommand("copy"); }
+      btn.textContent = "已複製 ✓"; setTimeout(() => (btn.textContent = "複製提示詞"), 1500);
+    });
+    box.querySelector("#p_go").addEventListener("click", () => {
+      const data = parsePasted(box.querySelector("#p_text").value);
+      if (!Object.keys(data).length) { box.querySelector("#p_err").textContent = "解析不出資料，請確認貼的是 AI 整理後的結果（JSON 或 標籤：值）。"; return; }
+      closeModal(box);
+      openEditor(Object.assign({}, data, { id: null }));
+    });
   }
 
   // ═══ 綁定與啟動 ═════════════════════════════════════════
@@ -569,7 +622,7 @@
   $("#fGrade").addEventListener("change", renderList);
   $("#addBtn").addEventListener("click", () => openEditor());
   $("#matchBtn").addEventListener("click", openMatch);
-  $("#lineBtn").addEventListener("click", openLineImport);
+  $("#lineBtn").addEventListener("click", openPasteImport);
   document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeTop(); });
 
   sb.auth.getSession().then(({ data }) => onSession(data.session));
