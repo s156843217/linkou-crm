@@ -22,12 +22,29 @@
     $("#loginBtn").disabled = true;
     return;
   }
-  const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY);
+  // 明確開啟登入狀態持久化：登入一次後會記住，重開瀏覽器/手機不必再登入。
+  const sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_ANON_KEY, {
+    auth: { persistSession: true, autoRefreshToken: true, storage: window.localStorage },
+  });
 
   // ── 狀態 ────────────────────────────────────────────────
   let me = null;            // 目前登入者 user
   let profiles = {};        // id → display_name
+  let ownerColors = {};     // id → 負責人代表色（卡片色塊用）
   let customers = [];       // 全部客戶
+
+  // 負責人代表色：沿用設計系統色（陶土橘、墨綠、琥珀金、藕紫）。
+  // 依 id 排序穩定分配，確保你與太太兩邊看到的同一人顏色一致。
+  const OWNER_PALETTE = ["#BD5E39", "#3C7A62", "#C2902B", "#7A5CA0"];
+  function assignOwnerColors() {
+    ownerColors = {};
+    Object.keys(profiles).sort().forEach((id, i) => {
+      ownerColors[id] = OWNER_PALETTE[i % OWNER_PALETTE.length];
+    });
+  }
+
+  // 記住 Email：把上次登入的 Email 存在本機，下次自動帶入（不存密碼，密碼交給瀏覽器密碼管理員）。
+  const REMEMBER_KEY = "crm_remember_email";
 
   // ── 彈窗系統 ────────────────────────────────────────────
   function openModal(innerHTML) {
@@ -47,10 +64,23 @@
     const pw = $("#pw").value;
     $("#loginErr").textContent = "";
     if (!email || !pw) { $("#loginErr").textContent = "請輸入 Email 與密碼。"; return; }
+    // 依勾選狀態決定是否記住 Email
+    if ($("#rememberEmail").checked) localStorage.setItem(REMEMBER_KEY, email);
+    else localStorage.removeItem(REMEMBER_KEY);
     $("#loginBtn").disabled = true; $("#loginBtn").textContent = "登入中…";
     const { error } = await sb.auth.signInWithPassword({ email, password: pw });
     $("#loginBtn").disabled = false; $("#loginBtn").textContent = "登入";
     if (error) { $("#loginErr").textContent = "登入失敗：" + error.message; }
+  }
+
+  // 載入登入畫面時，自動帶入上次記住的 Email
+  function prefillEmail() {
+    const saved = localStorage.getItem(REMEMBER_KEY);
+    if (saved) {
+      $("#email").value = saved;
+      $("#rememberEmail").checked = true;
+      $("#pw").focus();           // Email 已帶好，游標直接落在密碼欄
+    }
   }
 
   async function onSession(session) {
@@ -60,6 +90,9 @@
       $("#app").classList.remove("hidden");
       await loadProfiles();
       await ensureMyProfile();
+      assignOwnerColors();
+      renderOwnerLegend();
+      fillOwnerFilter();
       $("#whoami").textContent = (profiles[me.id] || me.email) + " ・ 您好";
       await loadCustomers();
     } else {
@@ -84,6 +117,25 @@
     if (!error) profiles[me.id] = name;
   }
 
+  // 負責人顏色圖例：顯示「哪個顏色＝誰的客戶」，自己那筆標註「(我)」。
+  function renderOwnerLegend() {
+    const el = $("#ownerLegend");
+    const ids = Object.keys(profiles).sort();
+    if (ids.length < 2) { el.classList.add("hidden"); return; }  // 只有一人時不需圖例
+    el.classList.remove("hidden");
+    el.innerHTML = `<span class="lg-t">負責人：</span>` + ids.map((id) =>
+      `<span class="lg"><i style="background:${ownerColors[id]}"></i>${esc(profiles[id])}${id === me.id ? "（我）" : ""}</span>`
+    ).join("");
+  }
+
+  // 負責人篩選下拉：填入所有使用者（保留「全部負責人」第一項）。
+  function fillOwnerFilter() {
+    const sel = $("#fOwner");
+    sel.innerHTML = `<option value="">全部負責人</option>` +
+      Object.keys(profiles).sort().map((id) =>
+        `<option value="${id}">${esc(profiles[id])}${id === me.id ? "（我）" : ""}</option>`).join("");
+  }
+
   // ═══ 客戶列表 ═══════════════════════════════════════════
   async function loadCustomers() {
     const { data, error } = await sb.from("customers").select("*").order("updated_at", { ascending: false });
@@ -95,10 +147,11 @@
 
   function renderList() {
     const q = $("#search").value.trim().toLowerCase();
-    const fs = $("#fStatus").value, fg = $("#fGrade").value;
+    const fs = $("#fStatus").value, fg = $("#fGrade").value, fo = $("#fOwner").value;
     let rows = customers.filter((c) => {
       if (fs && c.status !== fs) return false;
       if (fg && c.grade !== fg) return false;
+      if (fo && c.owner_id !== fo) return false;
       if (q) {
         const hay = [c.name, c.nickname, c.phone, c.note, join(c.communities), join(c.areas)].join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
@@ -120,7 +173,11 @@
     const budget = c.budget_min || c.budget_max
       ? `${c.budget_min || "?"}–${c.budget_max || "?"} 萬` : "";
     const meta = [c.phone, budget, join(c.areas)].filter(Boolean).join(" ・ ");
-    return `<div class="ccard" data-id="${c.id}">
+    // 負責人色塊：左側色條 + 彩色「負責人」標籤，一眼分辨是誰的客戶
+    const oc = ownerColors[c.owner_id] || "var(--line)";
+    const oname = profiles[c.owner_id] || "";
+    return `<div class="ccard" data-id="${c.id}" style="border-left:5px solid ${oc}">
+      ${oname ? `<span class="chip owner" style="color:${oc};border-color:${oc}">👤 ${esc(oname)}</span>` : ""}
       <div class="nm">${esc(c.name)}${c.nickname ? `<small>${esc(c.nickname)}</small>` : ""}</div>
       <div class="meta">${esc(meta) || "（尚無需求資料）"}</div>
       <div class="chips">
@@ -310,7 +367,7 @@
     return `<dl class="kv">
       ${row("分級", { A: "A 熱", B: "B 溫", C: "C 冷" }[c.grade] || c.grade)}
       ${row("狀態", c.status)}${row("意向", c.intent)}
-      ${row("負責人", profiles[c.owner_id])}
+      ${c.owner_id && profiles[c.owner_id] ? `<dt>負責人</dt><dd><span class="odot" style="background:${ownerColors[c.owner_id] || "var(--line)"}"></span>${esc(profiles[c.owner_id])}</dd>` : ""}
       ${row("電話", c.phone)}${row("LINE", c.line_id)}${row("來源", c.source)}
       ${row("生日", c.birthday)}${row("最後聯絡", c.last_contact)}
     </dl>
@@ -614,12 +671,14 @@
   }
 
   // ═══ 綁定與啟動 ═════════════════════════════════════════
-  $("#loginBtn").addEventListener("click", doLogin);
-  $("#pw").addEventListener("keydown", (e) => { if (e.key === "Enter") doLogin(); });
+  // 用 form submit（而非 button click）才能觸發瀏覽器密碼管理員的「記住密碼」
+  $("#loginForm").addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   $("#logoutBtn").addEventListener("click", () => sb.auth.signOut());
   $("#search").addEventListener("input", renderList);
   $("#fStatus").addEventListener("change", renderList);
   $("#fGrade").addEventListener("change", renderList);
+  $("#fOwner").addEventListener("change", renderList);
+  prefillEmail();
   $("#addBtn").addEventListener("click", () => openEditor());
   $("#matchBtn").addEventListener("click", openMatch);
   $("#lineBtn").addEventListener("click", openPasteImport);

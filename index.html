@@ -17,15 +17,19 @@
     <div class="panel">
       <h1>林口 <span style="color:var(--gold)">CRM</span></h1>
       <p class="sub">客戶維護系統 ・ 內部使用</p>
-      <div class="field">
-        <label class="lbl" for="email">Email</label>
-        <input id="email" type="email" autocomplete="username" placeholder="you@example.com">
-      </div>
-      <div class="field">
-        <label class="lbl" for="pw">密碼</label>
-        <input id="pw" type="password" autocomplete="current-password" placeholder="••••••••">
-      </div>
-      <button class="btn" id="loginBtn" style="width:100%">登入</button>
+      <!-- 用真正的 <form> 包起來，手機/瀏覽器的密碼管理員才會主動詢問是否記住密碼 -->
+      <form id="loginForm" autocomplete="on">
+        <div class="field">
+          <label class="lbl" for="email">Email</label>
+          <input id="email" name="email" type="email" autocomplete="username" placeholder="you@example.com">
+        </div>
+        <div class="field">
+          <label class="lbl" for="pw">密碼</label>
+          <input id="pw" name="password" type="password" autocomplete="current-password" placeholder="••••••••">
+        </div>
+        <label class="remember"><input type="checkbox" id="rememberEmail" checked> 記住我的 Email（下次自動帶入）</label>
+        <button class="btn" id="loginBtn" type="submit" style="width:100%">登入</button>
+      </form>
       <div class="err" id="loginErr"></div>
       <p class="hint" id="loginHint">首次使用請先到 Supabase 後台建立帳號（或啟用註冊）。</p>
     </div>
@@ -59,10 +63,16 @@
           <option value="B">B 溫</option>
           <option value="C">C 冷</option>
         </select>
+        <select id="fOwner">
+          <option value="">全部負責人</option>
+        </select>
         <button class="btn" id="addBtn">＋ 新增客戶</button>
         <button class="btn teal" id="matchBtn">🔍 新案比對</button>
         <button class="btn ghost" id="lineBtn">📥 貼上建檔</button>
       </div>
+
+      <!-- 負責人顏色圖例（哪個顏色＝誰的客戶）-->
+      <div id="ownerLegend" class="owner-legend hidden"></div>
 
       <div id="clist" class="clist"></div>
     </div>
