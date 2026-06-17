@@ -93,7 +93,7 @@
       assignOwnerColors();
       renderOwnerLegend();
       fillOwnerFilter();
-      $("#whoami").textContent = (profiles[me.id] || me.email) + " ・ 您好";
+      renderWhoami();
       await loadCustomers();
     } else {
       me = null;
@@ -136,6 +136,46 @@
     sel.innerHTML = `<option value="">全部負責人</option>` +
       Object.keys(profiles).sort().map((id) =>
         `<option value="${id}">${esc(profiles[id])}${id === me.id ? "（我）" : ""}</option>`).join("");
+  }
+
+  // 更新右上角「您好」文字（顯示自己的名稱）
+  function renderWhoami() {
+    $("#whoami").innerHTML = `${esc(profiles[me.id] || me.email)} ・ 您好 <span class="edit">✎ 改名</span>`;
+  }
+
+  // 改自己的顯示名稱：RLS 只允許改自己那筆 profile（你改你的、太太登入改她的）。
+  function openNameEditor() {
+    const cur = profiles[me.id] || "";
+    const box = openModal(`
+      <div class="mhead"><h2>修改顯示名稱</h2><button class="x" data-x>×</button></div>
+      <div class="mbody">
+        <p class="hint" style="margin-bottom:12px">這個名稱會顯示在客戶卡的「負責人」標籤與圖例上（只會改到您自己的，不影響太太的）。</p>
+        <div class="field"><label class="lbl">顯示名稱</label>
+          <input id="nm_in" value="${esc(cur)}" placeholder="例如：阿明、淑芬" maxlength="20"></div>
+        <div class="err" id="nm_err"></div>
+      </div>
+      <div class="mfoot">
+        <button class="btn ghost" data-x>取消</button>
+        <button class="btn" id="nm_save">儲存</button>
+      </div>`);
+    box.querySelectorAll("[data-x]").forEach((b) => b.addEventListener("click", () => closeModal(box)));
+    const inp = box.querySelector("#nm_in");
+    inp.focus();
+    box.querySelector("#nm_save").addEventListener("click", async () => {
+      const name = inp.value.trim();
+      if (!name) { box.querySelector("#nm_err").textContent = "請輸入名稱。"; return; }
+      const btn = box.querySelector("#nm_save"); btn.disabled = true; btn.textContent = "儲存中…";
+      const { error } = await sb.from("profiles").upsert({ id: me.id, display_name: name });
+      if (error) { box.querySelector("#nm_err").textContent = "儲存失敗：" + error.message; btn.disabled = false; btn.textContent = "儲存"; return; }
+      closeModal(box);
+      // 重新載入名單、重算顏色、刷新所有用到名稱/顏色的地方
+      await loadProfiles();
+      assignOwnerColors();
+      renderWhoami();
+      renderOwnerLegend();
+      fillOwnerFilter();
+      renderList();
+    });
   }
 
   // ═══ 客戶列表 ═══════════════════════════════════════════
@@ -677,6 +717,7 @@
   // 用 form submit（而非 button click）才能觸發瀏覽器密碼管理員的「記住密碼」
   $("#loginForm").addEventListener("submit", (e) => { e.preventDefault(); doLogin(); });
   $("#logoutBtn").addEventListener("click", () => sb.auth.signOut());
+  $("#whoami").addEventListener("click", openNameEditor);
   $("#search").addEventListener("input", renderList);
   $("#fStatus").addEventListener("change", renderList);
   $("#fGrade").addEventListener("change", renderList);
