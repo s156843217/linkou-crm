@@ -120,6 +120,7 @@
   // 負責人顏色圖例：顯示「哪個顏色＝誰的客戶」，自己那筆標註「(我)」。
   function renderOwnerLegend() {
     const el = $("#ownerLegend");
+    if (!el) return;  // 防呆：舊版頁面（快取）沒有此元素時，不要中斷後續客戶載入
     const ids = Object.keys(profiles).sort();
     if (ids.length < 2) { el.classList.add("hidden"); return; }  // 只有一人時不需圖例
     el.classList.remove("hidden");
@@ -131,6 +132,7 @@
   // 負責人篩選下拉：填入所有使用者（保留「全部負責人」第一項）。
   function fillOwnerFilter() {
     const sel = $("#fOwner");
+    if (!sel) return;  // 防呆：同上
     sel.innerHTML = `<option value="">全部負責人</option>` +
       Object.keys(profiles).sort().map((id) =>
         `<option value="${id}">${esc(profiles[id])}${id === me.id ? "（我）" : ""}</option>`).join("");
@@ -147,7 +149,8 @@
 
   function renderList() {
     const q = $("#search").value.trim().toLowerCase();
-    const fs = $("#fStatus").value, fg = $("#fGrade").value, fo = $("#fOwner").value;
+    const foEl = $("#fOwner");
+    const fs = $("#fStatus").value, fg = $("#fGrade").value, fo = foEl ? foEl.value : "";
     let rows = customers.filter((c) => {
       if (fs && c.status !== fs) return false;
       if (fg && c.grade !== fg) return false;
