@@ -85,7 +85,15 @@
 
   async function onSession(session) {
     if (session && session.user) {
-      me = session.user;
+      // 向後端驗證這個登入是否仍然有效。若殘留的是失效登入（會被降級成訪客、
+      // RLS 靜默回空白 → 看似登入卻沒資料），就自動登出踢回登入頁，避免卡死。
+      const { data: u, error: ue } = await sb.auth.getUser();
+      if (ue || !u || !u.user) {
+        await sb.auth.signOut();   // 觸發 onAuthStateChange(null) → 顯示登入畫面
+        $("#loginErr").textContent = "登入已逾期，請重新登入。";
+        return;
+      }
+      me = u.user;
       $("#login").classList.add("hidden");
       $("#app").classList.remove("hidden");
       await loadProfiles();
