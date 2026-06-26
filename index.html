@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Noto+Serif+TC:wght@700;900&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=20260617d">
+  <link rel="stylesheet" href="styles.css?v=20260626c">
 </head>
 <body>
 
@@ -66,6 +66,13 @@
         <select id="fOwner">
           <option value="">全部負責人</option>
         </select>
+        <select id="fSort" title="排序方式">
+          <option value="updated">最近更新</option>
+          <option value="created">建立時間（新→舊）</option>
+          <option value="grade">分級（熱→冷）</option>
+          <option value="mine">我的客戶優先</option>
+          <option value="other">夥伴客戶優先</option>
+        </select>
         <button class="btn" id="addBtn">＋ 新增客戶</button>
         <button class="btn teal" id="matchBtn">🔍 新案比對</button>
         <button class="btn ghost" id="lineBtn">📥 貼上建檔</button>
@@ -85,6 +92,6 @@
   <script src="config.js"></script>
   <!-- Supabase JS SDK v2 -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="app.js?v=20260626b"></script>
+  <script src="app.js?v=20260626c"></script>
 </body>
 </html>
